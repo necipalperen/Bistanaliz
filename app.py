@@ -24,7 +24,7 @@ hisse_model_dict = {
 
 st.set_page_config(layout="wide")
 st.title("Hisse Tahmin ve Al-Sat Sinyalleri")
-
+st.subheader("Bu çalışma, Necip Alperen Tuğan'ın doktora tez çalışması kapsamında gerçekleştirilmiştir. Sunulan veriler ve modeller yalnızca akademik amaçlara hizmet etmekte olup, yatırım tavsiyesi niteliği taşımamaktadır.")
 st.sidebar.header("Ayarlar")
 model_tipi = st.sidebar.radio("Model Tipini Seçin", ["Derin Öğrenme", "LSTM"])
 selected_hisse = st.sidebar.selectbox("Lütfen bir hisse seçin:", list(hisse_model_dict.keys()))
@@ -45,7 +45,7 @@ if st.sidebar.button("Veriyi İşle"):
         if model_tipi == "Derin Öğrenme":
             x = veri[["Open", "High", "Low", "Adj Close", "Volume"]].values
             x_scaled = scaler.fit_transform(x)
-            tahminler = model.predict(x_scaled)
+            tahminler = model.predict(x_scaled)   
             veri["Tahmin"] = tahminler[:, 0]
         else:  # LSTM için veri hazırlığı
             scaled_data = scaler.fit_transform(veri['Close'].values.reshape(-1, 1))
@@ -58,7 +58,7 @@ if st.sidebar.button("Veriyi İşle"):
         veri['Signal'] = 0
         veri.loc[veri['Tahmin'] > veri['Close'] * 1.01, 'Signal'] = 1
         veri.loc[veri['Tahmin'] < veri['Close'] * 0.99, 'Signal'] = -1
-
+        
         elimizdeki_para = 100000
         hisse_adeti = 0
         toplam_deger_listesi = []
@@ -78,6 +78,7 @@ if st.sidebar.button("Veriyi İşle"):
             toplam_deger_listesi.append(toplam_deger)
             para_listesi.append(elimizdeki_para)
             hisse_listesi.append(hisse_adeti)
+        
         st.write("### Alım-Satım Sinyalleri")
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=veri.index, y=veri['Close'], name="Kapanış Fiyatı", line=dict(color='blue')))
@@ -86,13 +87,29 @@ if st.sidebar.button("Veriyi İşle"):
         fig.add_trace(go.Scatter(x=veri[veri['Signal'] == -1].index, y=veri['Close'][veri['Signal'] == -1],
                                  mode="markers", name="Sat Sinyali", marker=dict(color='red', symbol='triangle-down')))
         st.plotly_chart(fig, use_container_width=True)
+        st.write("### Model Tahmini ve Gerçek Değerler")
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=veri.index,
+            y=veri['Close'],
+            name="Kapanış Fiyatı",
+            line=dict(color='blue')
+        ))
+        fig.add_trace(go.Scatter(
+            x=veri.index,
+            y=veri['Tahmin'],
+            name="Model Tahmini",
+            line=dict(color='orange', dash='dot')
+        ))
+        st.plotly_chart(fig, use_container_width=True)
+
         st.write("### Finansal Sonuçlar")
         st.write(f"**Başlangıç Sermayemiz:** 100000 ₺")
         toplam_kazanc = toplam_deger_listesi[-1] - 100000
         st.write(f"**Toplam Kazanç:** {toplam_kazanc:.2f} ₺")
         st.write(f"**Son Toplam Para:** {toplam_deger_listesi[-1]:.2f} ₺")
 
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3,col4= st.columns(4)
 
         with col1:
             st.write("### Hisse Adedi Değişimi")
@@ -118,7 +135,26 @@ if st.sidebar.button("Veriyi İşle"):
             plt.axhline(100000, color="red", linestyle="--")
             plt.xlabel("Gün")
             plt.ylabel("Toplam Değer (TL)")
+            plt.grid()
             st.pyplot(fig3)
+        with col4:
+            st.write("### Alım, Bekleme, Satış Sinyal Dağılımı")
+            fig4 = plt.figure(figsize=(14, 6))
+            veri['sinyal_str'] = veri['Signal'].map({1: '1 Al', 0: '0 Bekle', -1: '-1 Sat'})
+            sinyal_sayilari = veri['sinyal_str'].value_counts()
+            bars = plt.bar(sinyal_sayilari.index, sinyal_sayilari.values, color=['green', 'gray', 'red'])
+            for bar in bars:
+                height = bar.get_height()
+                plt.text(
+                    bar.get_x() + bar.get_width() / 2, 
+                    height, 
+                    f"{int(height)}",  
+                    ha="center", va="bottom", fontsize=10  
+                )
+            plt.xlabel("Sinyal")
+            plt.ylabel("Sayı")
+            plt.title("Alım, Bekleme ve Satış Sinyallerinin Dağılımı")
+            st.pyplot(fig4)
 
         baslangic_para_altin = 100000
         baslangic_para_gumus = 100000
@@ -169,5 +205,40 @@ if st.sidebar.button("Veriyi İşle"):
         plt.legend()
         plt.grid()
         st.pyplot(plt)
+        data = {
+            "Yıl": [2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023],
+            "Yıl Başı Değeri": [100000, 111250, 119593.75, 128055.28, 138299.70, 171491.64, 192070.64, 208405.89, 243843.84, 277968.77],
+            "Yıl Sonu Değeri": [111250, 119593.75, 128055.28, 138299.70, 171491.64, 192070.64, 208405.89, 243843.84, 277968.77, 303046.96]
+        }
+        df = pd.DataFrame(data)
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write("Veri Tablosu:")
+            st.dataframe(df)
+        
+        with col2:
+            st.write("\n")
+            st.write("""
+            ### Faiz Birikimi Hesaplama Detayları:
+            - **2014 Ocak – 2014 Sonu**: 100,000 TL * (1 + 0.1125) = 111,250 TL  
+            - **2015 Ocak – 2015 Sonu**: 111,250 TL * (1 + 0.075) = 119,593.75 TL  
+            - **2016 Ocak – 2016 Sonu**: 119,593.75 TL * (1 + 0.075) = 128,055.28 TL  
+            - **2017 Ocak – 2017 Sonu**: 128,055.28 TL * (1 + 0.08) = 138,299.70 TL  
+            - **2018 Ocak – 2018 Sonu**: 138,299.70 TL * (1 + 0.24) = 171,491.64 TL  
+            - **2019 Ocak – 2019 Sonu**: 171,491.64 TL * (1 + 0.12) = 192,070.64 TL  
+            - **2020 Ocak – 2020 Sonu**: 192,070.64 TL * (1 + 0.085) = 208,405.89 TL  
+            - **2021 Ocak – 2021 Sonu**: 208,405.89 TL * (1 + 0.17) = 243,843.84 TL  
+            - **2022 Ocak – 2022 Sonu**: 243,843.84 TL * (1 + 0.14) = 277,968.77 TL  
+            - **2023 Ocak – 2023 Sonu**: 277,968.77 TL * (1 + 0.09) = 303,046.96 TL  
+            """)
+        st.write("### Faiz Birikimi Sonuçları")
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.plot(df["Yıl"], df["Yıl Sonu Değeri"], marker='o', label="Yıl Sonu Değeri")
+        ax.set_title("Faiz Birikimi Sonuçları Yıl Sonu Değerleri", fontsize=16)
+        ax.set_xlabel("Yıl", fontsize=12)
+        ax.set_ylabel("Değer (TL)", fontsize=12)
+        ax.legend()
+        ax.grid()
+        st.pyplot(fig)
     else:
         st.error("Lütfen geçerli bir tarih aralığı seçin!")
