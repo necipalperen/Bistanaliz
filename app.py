@@ -6,27 +6,28 @@ import yfinance as yf
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 from keras.models import load_model
+from joblib import load
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 hisse_model_dict = {
-    "ASELSAN": {"derin": "aselsan_derin.keras", "lstm": "aselsan_lstm.keras", "code": "ASELS.IS"},
-    "AKBANK": {"derin": "akbank_derin.keras", "lstm": "akbank_lstm.keras", "code": "AKBNK.IS"},
-    "EREĞLİ": {"derin": "eregli.keras", "lstm": "ergel_lstm.keras", "code": "EREGL.IS"},
-    "KCHOL": {"derin": "kchol_derin.keras", "lstm": "kchol_lstm.keras", "code": "KCHOL.IS"},
-    "PETKİM": {"derin": "petkim_derin.keras", "lstm": "petkim_lstm.keras", "code": "PETKM.IS"},
-    "SABANCI": {"derin": "sahol_derin.keras", "lstm": "sahol_lstm.keras", "code": "SAHOL.IS"},
-    "TCELL": {"derin": "turkcel_derin.keras", "lstm": "trkcel_lstm.keras", "code": "TCELL.IS"},
-    "THY": {"derin": "türk_hava_yolları.keras", "lstm": "thy_lstm.keras", "code": "THYAO.IS"}
+    "ASELSAN": {"derin": "aselsan_derin.keras", "lstm": "aselsan_lstm.keras","Arima":"aselsan_arima_model.pkl", "code": "ASELS.IS"},
+    "AKBANK": {"derin": "akbank_derin.keras", "lstm": "akbank_lstm.keras","Arima":"AKBNK_arima.pkl","code": "AKBNK.IS"},
+    "EREĞLİ": {"derin": "eregli.keras", "lstm": "ergel_lstm.keras","Arima":"eregli_arima_model.pkl", "code": "EREGL.IS"},
+    "KCHOL": {"derin": "kchol_derin.keras", "lstm": "kchol_lstm.keras","Arima":"kchol_arima_model.pkl", "code": "KCHOL.IS"},
+    "PETKİM": {"derin": "petkim_derin.keras", "lstm": "petkim_lstm.keras","Arima":"PETKİM_arima_model.pkl", "code": "PETKM.IS"},
+    "SABANCI": {"derin": "sahol_derin.keras", "lstm": "sahol_lstm.keras","Arima":"SAHOL_arima_model.pkl", "code": "SAHOL.IS"},
+    "TCELL": {"derin": "turkcel_derin.keras", "lstm": "trkcel_lstm.keras","Arima":"turkcel_arima_model.pkl", "code": "TCELL.IS"},
+    "THY": {"derin": "türk_hava_yolları.keras", "lstm": "thy_lstm.keras","Arima":"turkhavayollari_arima_model.pkl", "code": "THYAO.IS"}
 }
 
 st.set_page_config(layout="wide")
 st.title("Hisse Tahmin ve Al-Sat Sinyalleri")
 st.subheader("Bu çalışma, Necip Alperen Tuğan'ın doktora tez çalışması kapsamında gerçekleştirilmiştir. Sunulan veriler ve modeller yalnızca akademik amaçlara hizmet etmekte olup, yatırım tavsiyesi niteliği taşımamaktadır.")
 st.sidebar.header("Ayarlar")
-model_tipi = st.sidebar.radio("Model Tipini Seçin", ["Derin Öğrenme", "LSTM"])
+model_tipi = st.sidebar.radio("Model Tipini Seçin", ["Derin Öğrenme", "LSTM","Arima"])
 selected_hisse = st.sidebar.selectbox("Lütfen bir hisse seçin:", list(hisse_model_dict.keys()))
 start_date = st.sidebar.date_input("Başlangıç Tarihi", pd.to_datetime("2014-01-01"))
 end_date = st.sidebar.date_input("Bitiş Tarihi", pd.to_datetime("2024-01-01"))
@@ -47,18 +48,37 @@ if st.sidebar.button("Veriyi İşle"):
             x_scaled = scaler.fit_transform(x)
             tahminler = model.predict(x_scaled)   
             veri["Tahmin"] = tahminler[:, 0]
-        else:  # LSTM için veri hazırlığı
+            veri['Signal'] = 0
+            veri.loc[veri['Tahmin'] > veri['Close'] * 1.01, 'Signal'] = 1
+            veri.loc[veri['Tahmin'] < veri['Close'] * 0.99, 'Signal'] = -1
+        elif model_tipi == "LSTM":
             scaled_data = scaler.fit_transform(veri['Close'].values.reshape(-1, 1))
             X = [scaled_data[i-100:i, 0] for i in range(100, len(scaled_data))]
             X = np.array(X).reshape(-1, 100, 1)
             tahminler = model.predict(X)
             veri = veri.iloc[100:].copy()
             veri["Tahmin"] = scaler.inverse_transform(tahminler)
+            veri['Signal'] = 0
+            veri.loc[veri['Tahmin'] > veri['Close'] * 1.01, 'Signal'] = 1
+            veri.loc[veri['Tahmin'] < veri['Close'] * 0.99, 'Signal'] = -1
+        else:
+            def modeli_yukle_ve_tahmin_yap(hisse_senedi, baslangic_tarihi, bitis_tarihi, model_dosyasi):
+                veri = yf.download(hisse_senedi, start=baslangic_tarihi, end=bitis_tarihi)
+                veri = veri[['Close']].dropna()  
+                model_fit = load(model_dosyasi)
+                tahminler = model_fit.predict(start=0, end=len(veri)-1)
+                veri["Tahmin"] = tahminler
+                return veri
+            hisse_kodu = hisse_model_dict[selected_hisse]["code"]
+            arima_model_dosyasi = hisse_model_dict[selected_hisse]["Arima"]
+            try:
+                veri = modeli_yukle_ve_tahmin_yap(hisse_kodu, start_date, end_date, arima_model_dosyasi)
+                veri["Signal"] = 0
+                veri.loc[veri["Tahmin"] > veri["Close"], "Signal"] = 1
+                veri.loc[veri["Tahmin"] < veri["Close"], "Signal"] = -1
+            except Exception as e:
+                st.error(f"ARIMA modeli çalıştırılamadı: {e}")
 
-        veri['Signal'] = 0
-        veri.loc[veri['Tahmin'] > veri['Close'] * 1.01, 'Signal'] = 1
-        veri.loc[veri['Tahmin'] < veri['Close'] * 0.99, 'Signal'] = -1
-        
         elimizdeki_para = 100000
         hisse_adeti = 0
         toplam_deger_listesi = []
@@ -66,11 +86,11 @@ if st.sidebar.button("Veriyi İşle"):
         hisse_listesi = []
 
         for i in range(len(veri)):
-            if veri['Signal'][i] == 1:  # Alım sinyali
+            if veri['Signal'][i] == 1: 
                 adet = int(elimizdeki_para / veri['Close'][i])
                 hisse_adeti += adet
                 elimizdeki_para -= adet * veri['Close'][i]
-            elif veri['Signal'][i] == -1:  # Satış sinyali
+            elif veri['Signal'][i] == -1:  
                 elimizdeki_para += hisse_adeti * veri['Close'][i]
                 hisse_adeti = 0
 
