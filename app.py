@@ -20,7 +20,9 @@ hisse_model_dict = {
     "PETKİM": {"derin": "petkim_derin.keras", "lstm": "petkim_lstm.keras","Arima":"PETKİM_arima_model.pkl", "code": "PETKM.IS"},
     "SABANCI": {"derin": "sahol_derin.keras", "lstm": "sahol_lstm.keras","Arima":"SAHOL_arima_model.pkl", "code": "SAHOL.IS"},
     "TCELL": {"derin": "turkcel_derin.keras", "lstm": "trkcel_lstm.keras","Arima":"turkcel_arima_model.pkl", "code": "TCELL.IS"},
-    "THY": {"derin": "türk_hava_yolları.keras", "lstm": "thy_lstm.keras","Arima":"turkhavayollari_arima_model.pkl", "code": "THYAO.IS"}
+    "GARAN": {"derin": "garan_derin.keras", "lstm": "garan_lstm.keras","Arima":"garan_arima_model.pkl", "code": "GARAN.IS"},
+    "KRDMD": {"derin": "kardemir_derin.keras", "lstm": "kardemir_lstm.keras","Arima":"krdmd_arima_model.pkl", "code": "KRDMD.IS"},
+
 }
 
 st.set_page_config(layout="wide")
